@@ -1,6 +1,17 @@
 target/
+bin/
+data/
 .idea/
 .vscode/
+.settings/
+.classpath
+.project
 *.iml
 *.log
+*.class
+*.db
+*.mv.db
+*.trace.db
+run-*.err
+run-*.log
 .env
