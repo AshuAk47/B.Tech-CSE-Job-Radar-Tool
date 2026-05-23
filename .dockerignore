@@ -1,0 +1,14 @@
+target/
+bin/
+data/
+.git/
+.idea/
+.vscode/
+.settings/
+.env
+*.log
+*.err
+*.class
+*.db
+*.mv.db
+*.trace.db
