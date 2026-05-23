@@ -41,10 +41,6 @@ POST /api/jobs/refresh
 POST /api/alerts
 ```
 
-## Resume Line
-
-Built a Java Spring Boot job aggregation and alert platform for BTech CS/CSE students. Implemented scheduled scraping with Jsoup, JPA-based normalized job storage, CS eligibility scoring, REST APIs, and multi-channel notification adapters for email, Telegram, and WhatsApp.
-
 ## Deployment Options
 
 - Render: Java web service, build command `mvn clean package`, start command `java -jar target/cs-job-radar-0.0.1-SNAPSHOT.jar`
