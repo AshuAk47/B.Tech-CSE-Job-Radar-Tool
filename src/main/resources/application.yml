@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: cs-job-radar
+  datasource:
+    url: jdbc:h2:file:./data/cs-job-radar-db
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
+csradar:
+  scraper:
+    enabled: true
+    cron: "0 0 */3 * * *"
+  alerts:
+    daily-digest-cron: "0 0 9 * * *"
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+  twilio:
+    account-sid: ${TWILIO_ACCOUNT_SID:}
+    auth-token: ${TWILIO_AUTH_TOKEN:}
+    whatsapp-from: ${TWILIO_WHATSAPP_FROM:}

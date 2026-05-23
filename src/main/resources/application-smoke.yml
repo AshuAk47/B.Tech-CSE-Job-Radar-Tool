@@ -1,0 +1,16 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:jobsdb-smoke
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: false
+
+app:
+  admin:
+    username: admin
+    password: admin123

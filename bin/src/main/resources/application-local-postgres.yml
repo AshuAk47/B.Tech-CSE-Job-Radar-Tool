@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cs_job_radar
+    username: postgres
+    password: root123
+  h2:
+    console:
+      enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+app:
+  admin:
+    username: admin
+    password: admin123
