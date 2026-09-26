@@ -2,10 +2,12 @@ package com.csradar.scraper;
 
 import com.csradar.jobs.JobCategory;
 import com.csradar.jobs.JobType;
+import com.csradar.jobs.CseEligibilityMatcher;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -14,16 +16,24 @@ import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public class SarkariResultAdapter implements JobSourceAdapter {
+    private static final Logger log = LoggerFactory.getLogger(SarkariResultAdapter.class);
     private static final String HOME_URL = "https://www.sarkariresult.com/";
     private static final String SOURCE_URL = "https://www.sarkariresult.com/latestjob/";
     private static final Pattern YEAR_PATTERN = Pattern.compile("\\b(20\\d{2})\\b");
     private static final Pattern NUMERIC_DATE_PATTERN = Pattern.compile("\\b(\\d{1,2})[/-](\\d{1,2})[/-](20\\d{2})\\b");
     private static final Pattern TEXT_DATE_PATTERN = Pattern.compile("\\b(\\d{1,2})\\s+(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(20\\d{2})\\b", Pattern.CASE_INSENSITIVE);
-    private static final int MAX_DETAIL_PAGES = 120;
+    private static final int MAX_DETAIL_PAGES = 250;
+    private final CseEligibilityMatcher eligibilityMatcher;
+
+    public SarkariResultAdapter(CseEligibilityMatcher eligibilityMatcher) {
+        this.eligibilityMatcher = eligibilityMatcher;
+    }
 
     @Override
     public String sourceName() {
@@ -33,36 +43,36 @@ public class SarkariResultAdapter implements JobSourceAdapter {
     @Override
     public List<ScrapedJob> fetchJobs() {
         List<ScrapedJob> jobs = new ArrayList<>();
-        try {
-            int checked = 0;
-            for (String pageUrl : List.of(HOME_URL, SOURCE_URL)) {
+        LinkedHashMap<String, String> candidates = new LinkedHashMap<>();
+        for (String pageUrl : List.of(HOME_URL, SOURCE_URL)) {
+            try {
                 Document document = Jsoup.connect(pageUrl)
                         .userAgent("Mozilla/5.0 CSJobRadarBot/1.0")
                         .timeout(12000)
                         .get();
-
                 for (Element link : document.select("a[href]")) {
                     String text = link.text().trim();
                     String href = link.absUrl("href");
-                    if (text.length() < 12 || href.isBlank() || isOldArchivePost(text) || !looksRecruitmentCandidate(text)) {
+                    if (!isCurrentRecruitmentLink(text, href)) {
                         continue;
                     }
-                    if (checked++ >= MAX_DETAIL_PAGES) {
-                        return jobs;
-                    }
-                    ScrapedJob job = scrapeDetail(text, href);
-                    if (job == null) {
-                        continue;
-                    }
-                    boolean duplicate = jobs.stream().anyMatch(existing -> existing.sourceUrl().equals(job.sourceUrl()));
-                    if (!duplicate) {
-                        jobs.add(job);
-                    }
+                    candidates.putIfAbsent(href, text);
                 }
+            } catch (Exception exception) {
+                log.warn("Could not load SarkariResult listing {}: {}", pageUrl, exception.getMessage());
             }
-        } catch (Exception ignored) {
-            return List.of();
         }
+        int checked = 0;
+        for (var candidate : candidates.entrySet()) {
+            if (checked++ >= MAX_DETAIL_PAGES) {
+                break;
+            }
+            ScrapedJob job = scrapeDetail(candidate.getValue(), candidate.getKey());
+            if (job != null) {
+                jobs.add(job);
+            }
+        }
+        log.info("SarkariResult scan checked {} recruitment pages and matched {} CS/CSE eligible jobs", checked, jobs.size());
         return jobs;
     }
 
@@ -73,7 +83,7 @@ public class SarkariResultAdapter implements JobSourceAdapter {
                     .timeout(10000)
                     .get();
             String pageText = detail.text();
-            if (!hasBtechCsEligibility(pageText + " " + title)) {
+            if (!eligibilityMatcher.matches(pageText)) {
                 return null;
             }
             Optional<LocalDate> lastDate = extractLastDate(pageText);
@@ -97,7 +107,8 @@ public class SarkariResultAdapter implements JobSourceAdapter {
                     applyUrl,
                     sourceName()
             );
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            log.debug("Skipped SarkariResult post {}: {}", href, exception.getMessage());
             return null;
         }
     }
@@ -170,6 +181,7 @@ public class SarkariResultAdapter implements JobSourceAdapter {
     }
 
     private String extractApplyUrl(Document detail, String fallbackUrl) {
+        String fallback = fallbackUrl;
         for (Element link : detail.select("a[href]")) {
             String href = link.absUrl("href");
             String text = link.text().toLowerCase(Locale.ROOT);
@@ -177,36 +189,19 @@ public class SarkariResultAdapter implements JobSourceAdapter {
             if (href.isBlank()) {
                 continue;
             }
-            if (hrefLower.contains("joinindiannavy.gov.in")
-                    || hrefLower.contains("ibpsonline")
-                    || hrefLower.contains("recruitment")
-                    || hrefLower.contains("apply")
-                    || text.contains("apply online")) {
+            if (text.contains("apply online") && !hrefLower.contains("sarkariresult.com")) {
                 return href;
             }
+            if (!hrefLower.contains("sarkariresult.com")
+                    && (hrefLower.contains("recruitment") || hrefLower.contains("apply") || hrefLower.contains("ibpsonline"))) {
+                fallback = href;
+            }
         }
-        return fallbackUrl;
+        return fallback;
     }
 
     private LocalDate parseNumericDate(String day, String month, String year) {
         return LocalDate.of(Integer.parseInt(year), Integer.parseInt(month), Integer.parseInt(day));
-    }
-
-    private boolean hasBtechCsEligibility(String text) {
-        String lower = text.toLowerCase(Locale.ROOT);
-        boolean degreeSignal = lower.contains("b.tech")
-                || lower.contains("btech")
-                || lower.contains("b.e")
-                || lower.contains("be/")
-                || lower.contains("bachelor")
-                || lower.contains("mca");
-        boolean csSignal = lower.contains("computer science")
-                || lower.contains("cse")
-                || lower.contains("computer engineering")
-                || lower.contains("information technology")
-                || lower.contains("software")
-                || lower.contains("programmer");
-        return degreeSignal && csSignal;
     }
 
     private String summarizeEligibility(String text) {
@@ -237,19 +232,13 @@ public class SarkariResultAdapter implements JobSourceAdapter {
         return heading.text().trim();
     }
 
-    private boolean looksComputerScienceFriendly(String text) {
-        String lower = text.toLowerCase();
-        return lower.contains("computer")
-                || lower.contains("software")
-                || lower.contains("programmer")
-                || lower.contains("developer")
-                || lower.contains("it ")
-                || lower.contains("information technology")
-                || lower.contains("scientist")
-                || lower.contains("engineer");
-    }
-
-    private boolean looksRecruitmentCandidate(String text) {
+    private boolean isCurrentRecruitmentLink(String text, String href) {
+        if (text.length() < 12 || href.isBlank() || !href.startsWith("https://www.sarkariresult.com/")) {
+            return false;
+        }
+        if (href.equals(HOME_URL) || href.equals(SOURCE_URL) || isOldArchivePost(text + " " + href)) {
+            return false;
+        }
         String lower = text.toLowerCase(Locale.ROOT);
         return lower.contains("online form")
                 || lower.contains("recruitment")

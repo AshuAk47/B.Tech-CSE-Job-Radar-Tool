@@ -6,7 +6,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class JobRelevanceScorerTest {
-    private final JobRelevanceScorer scorer = new JobRelevanceScorer();
+    private final CseEligibilityMatcher eligibilityMatcher = new CseEligibilityMatcher();
+    private final JobRelevanceScorer scorer = new JobRelevanceScorer(eligibilityMatcher);
 
     @Test
     void scoresComputerScienceJavaJobsHighly() {
@@ -17,5 +18,17 @@ class JobRelevanceScorerTest {
         );
 
         assertThat(score).isGreaterThanOrEqualTo(75);
+    }
+
+    @Test
+    void matchesCommonCsAndItQualificationWordings() {
+        assertThat(eligibilityMatcher.matches("BE / B.Tech in Computer Science & Engineering or Information Technology")).isTrue();
+        assertThat(eligibilityMatcher.matches("B.Tech in AI, Data Science, Cyber Security or Computer Engineering")).isTrue();
+        assertThat(eligibilityMatcher.matches("MCA / BCA / B.Sc Computer Applications candidates are eligible")).isTrue();
+    }
+
+    @Test
+    void rejectsUnrelatedEngineeringDegreeEvenWhenThePostTitleMentionsComputer() {
+        assertThat(eligibilityMatcher.matches("B.Tech in Civil Engineering only; experience with computer office work")).isFalse();
     }
 }

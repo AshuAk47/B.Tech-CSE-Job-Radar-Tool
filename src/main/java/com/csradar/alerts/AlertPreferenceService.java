@@ -2,6 +2,8 @@ package com.csradar.alerts;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @Service
 public class AlertPreferenceService {
@@ -15,6 +17,7 @@ public class AlertPreferenceService {
 
     @Transactional
     public AlertPreferenceDto create(AlertPreferenceRequest request) {
+        validate(request);
         AlertPreference preference = repository.save(new AlertPreference(
                 request.email(),
                 request.telegramChatId(),
@@ -24,5 +27,15 @@ public class AlertPreferenceService {
         ));
         notificationService.sendWelcome(preference);
         return AlertPreferenceDto.from(preference);
+    }
+
+    private void validate(AlertPreferenceRequest request) {
+        if (request.channels().contains(AlertChannel.EMAIL) && (request.email() == null || request.email().isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter an email address for email alerts.");
+        }
+        if (request.channels().contains(AlertChannel.WHATSAPP)
+                && (request.whatsappNumber() == null || request.whatsappNumber().isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a WhatsApp number with country code, for example +919876543210.");
+        }
     }
 }

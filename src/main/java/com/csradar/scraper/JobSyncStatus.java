@@ -7,6 +7,7 @@ public record JobSyncStatus(
         LocalDateTime lastCompletedAt,
         int lastFetchedCount,
         long lastSavedCount,
+        int lastNewCount,
         String message
 ) {
 }

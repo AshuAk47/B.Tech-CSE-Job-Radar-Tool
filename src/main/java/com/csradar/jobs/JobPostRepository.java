@@ -5,4 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JobPostRepository extends JpaRepository<JobPost, Long> {
     Optional<JobPost> findByTitleIgnoreCaseAndOrganizationIgnoreCase(String title, String organization);
+    Optional<JobPost> findFirstBySourceUrl(String sourceUrl);
 }

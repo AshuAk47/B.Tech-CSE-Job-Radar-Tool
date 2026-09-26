@@ -53,6 +53,7 @@ public class JobPost {
     private String sourceName;
     private int relevanceScore;
     private LocalDateTime discoveredAt;
+    private LocalDateTime lastSeenAt;
 
     protected JobPost() {
     }
@@ -74,6 +75,7 @@ public class JobPost {
         this.sourceName = sourceName;
         this.relevanceScore = relevanceScore;
         this.discoveredAt = LocalDateTime.now();
+        this.lastSeenAt = this.discoveredAt;
     }
 
     public Long getId() { return id; }
@@ -91,6 +93,25 @@ public class JobPost {
     public String getSourceName() { return sourceName; }
     public int getRelevanceScore() { return relevanceScore; }
     public LocalDateTime getDiscoveredAt() { return discoveredAt; }
+    public LocalDateTime getLastSeenAt() { return lastSeenAt; }
+
+    public void updateFrom(String title, String organization, JobCategory category, JobType type, String location,
+                           String eligibility, List<String> skills, LocalDate postedDate, LocalDate lastDate,
+                           String applyUrl, String sourceName, int relevanceScore) {
+        this.title = title;
+        this.organization = organization;
+        this.category = category;
+        this.type = type;
+        this.location = location;
+        this.eligibility = eligibility;
+        this.skills = new ArrayList<>(skills);
+        this.postedDate = postedDate;
+        this.lastDate = lastDate;
+        this.applyUrl = applyUrl;
+        this.sourceName = sourceName;
+        this.relevanceScore = relevanceScore;
+        this.lastSeenAt = LocalDateTime.now();
+    }
 
     public String fingerprint() {
         return (title + "|" + organization + "|" + sourceUrl).toLowerCase();

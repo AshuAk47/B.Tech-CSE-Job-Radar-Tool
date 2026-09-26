@@ -130,14 +130,14 @@
       </div>
 
       <h2>Backend</h2>
-      <p class="muted">Java 21, Spring Boot, JPA, H2, Jsoup, scheduled scraping, REST APIs, alert adapters.</p>
+      <p class="muted">Java 21, Spring Boot, PostgreSQL, Jsoup, scheduled sync, REST APIs, email and WhatsApp adapters.</p>
     </aside>
 
     <main>
       <div class="topbar">
         <div>
           <h1>Automated CS/CSE job tracker with alerts.</h1>
-          <p class="muted">Noise-free feed for government, PSU, private, startup, internship, and research jobs.</p>
+          <p class="muted">CS/CSE eligibility is matched from the source post and refreshed every 30 minutes.</p>
         </div>
         <button class="primary" id="refreshBtn">Refresh</button>
         <button id="alertBtn">Alerts</button>
@@ -166,16 +166,16 @@
   <dialog id="alertDialog">
     <form class="form" id="alertForm" method="dialog">
       <h3>Alert Setup</h3>
-      <input name="email" placeholder="Email">
-      <input name="telegramChatId" placeholder="Telegram chat id">
-      <input name="whatsappNumber" placeholder="WhatsApp number">
-      <input name="keywords" placeholder="Keywords: Java, Spring Boot, Govt">
+      <input name="email" type="email" placeholder="Email address for alerts">
+      <input name="telegramChatId" placeholder="Telegram chat id (optional)">
+      <input name="whatsappNumber" placeholder="WhatsApp number with country code, e.g. +919876543210">
+      <input name="keywords" placeholder="Optional keywords: Java, Spring Boot, Navy">
       <div class="checks">
         <label><input type="checkbox" name="channels" value="EMAIL" checked>Email</label>
         <label><input type="checkbox" name="channels" value="TELEGRAM">Telegram</label>
         <label><input type="checkbox" name="channels" value="WHATSAPP">WhatsApp</label>
-        <label><input type="checkbox" name="channels" value="BROWSER">Browser</label>
       </div>
+      <p class="muted">New matching listings trigger alerts after the next live scan. Email needs SMTP configuration; WhatsApp needs Twilio credentials.</p>
       <button class="primary">Save Alerts</button>
       <button type="button" onclick="alertDialog.close()">Close</button>
       <p class="muted" id="alertStatus"></p>
@@ -242,7 +242,8 @@
       try {
         const response = await fetch("/api/jobs/sync-status");
         const status = await response.json();
-        byId("syncLine").textContent = `Sync: ${status.message} Fetched ${status.lastFetchedCount || 0}, saved ${status.lastSavedCount || 0}.`;
+        const completed = status.lastCompletedAt ? formatDateTime(status.lastCompletedAt) : "not completed yet";
+        byId("syncLine").textContent = `Sync: ${status.message} Checked ${status.lastFetchedCount || 0}, database ${status.lastSavedCount || 0}, new ${status.lastNewCount || 0}. Last completed: ${completed}.`;
       } catch (error) {
         byId("syncLine").textContent = "";
       }
@@ -264,6 +265,10 @@
     function formatDate(date) {
       if (!date) return "Not available";
       return new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    }
+
+    function formatDateTime(value) {
+      return new Date(value).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
     }
 
     function renderFilters() {
@@ -532,7 +537,10 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      byId("alertStatus").textContent = response.ok ? "Alert preference saved." : "Could not save preference.";
+      const payload = response.ok ? null : await response.json().catch(() => null);
+      byId("alertStatus").textContent = response.ok
+        ? "Alert preference saved. New jobs will be checked on every scheduled scan."
+        : (payload?.detail || "Could not save preference.");
     });
 
     async function saveJob(jobId) {

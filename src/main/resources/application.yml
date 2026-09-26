@@ -20,11 +20,17 @@ spring:
     port: ${MAIL_PORT:1025}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_STARTTLS_ENABLE:false}
 
 csradar:
   scraper:
     enabled: true
-    cron: "0 0 */3 * * *"
+    cron: "0 0/30 * * * *"
   alerts:
     daily-digest-cron: "0 0 9 * * *"
   telegram:

@@ -3,6 +3,7 @@ package com.csradar.scraper;
 import com.csradar.jobs.JobPost;
 import com.csradar.jobs.JobPostRepository;
 import com.csradar.jobs.JobRelevanceScorer;
+import com.csradar.alerts.NotificationService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.slf4j.Logger;
@@ -18,18 +19,22 @@ public class JobScraperService {
     private final JobPostRepository repository;
     private final JobRelevanceScorer scorer;
     private final DemoJobAdapter demoJobAdapter;
+    private final NotificationService notificationService;
     private LocalDateTime lastStartedAt;
     private LocalDateTime lastCompletedAt;
     private int lastFetchedCount;
     private long lastSavedCount;
+    private int lastNewCount;
     private String lastMessage = "Refresh has not run yet.";
 
     public JobScraperService(List<JobSourceAdapter> adapters, JobPostRepository repository,
-                             JobRelevanceScorer scorer, DemoJobAdapter demoJobAdapter) {
+                             JobRelevanceScorer scorer, DemoJobAdapter demoJobAdapter,
+                             NotificationService notificationService) {
         this.adapters = adapters;
         this.repository = repository;
         this.scorer = scorer;
         this.demoJobAdapter = demoJobAdapter;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -46,12 +51,16 @@ public class JobScraperService {
                 log.warn(lastMessage);
                 return;
             }
-            repository.deleteAllInBatch();
-            scrapedJobs.forEach(this::saveIfRelevant);
+            List<JobPost> newJobs = scrapedJobs.stream()
+                    .map(this::saveOrUpdateIfRelevant)
+                    .flatMap(java.util.Optional::stream)
+                    .toList();
             lastSavedCount = repository.count();
+            lastNewCount = newJobs.size();
             lastCompletedAt = LocalDateTime.now();
-            lastMessage = "Refresh completed.";
-            log.info("Job refresh completed. fetched={}, saved={}", lastFetchedCount, lastSavedCount);
+            lastMessage = "Refresh completed: " + lastNewCount + " new, existing jobs updated.";
+            notificationService.sendNewJobAlerts(newJobs);
+            log.info("Job refresh completed. fetched={}, saved={}, new={}", lastFetchedCount, lastSavedCount, lastNewCount);
         } catch (RuntimeException exception) {
             lastMessage = "Refresh failed: " + exception.getMessage();
             log.error("Job refresh failed", exception);
@@ -61,19 +70,23 @@ public class JobScraperService {
 
     @Transactional
     public void seedDemoJobs() {
-        demoJobAdapter.demoJobs().forEach(this::saveIfRelevant);
+        demoJobAdapter.demoJobs().forEach(this::saveOrUpdateIfRelevant);
     }
 
-    private void saveIfRelevant(ScrapedJob scraped) {
+    private java.util.Optional<JobPost> saveOrUpdateIfRelevant(ScrapedJob scraped) {
         if (!scorer.isRelevant(scraped.title(), scraped.eligibility(), scraped.skills())) {
-            return;
-        }
-        boolean exists = repository.findByTitleIgnoreCaseAndOrganizationIgnoreCase(scraped.title(), scraped.organization()).isPresent();
-        if (exists) {
-            return;
+            return java.util.Optional.empty();
         }
         int score = scorer.score(scraped.title(), scraped.eligibility(), scraped.skills());
-        repository.save(new JobPost(
+        var existing = repository.findFirstBySourceUrl(scraped.sourceUrl());
+        if (existing.isPresent()) {
+            existing.get().updateFrom(
+                    scraped.title(), scraped.organization(), scraped.category(), scraped.type(), scraped.location(),
+                    scraped.eligibility(), scraped.skills(), scraped.postedDate(), scraped.lastDate(),
+                    scraped.applyUrl(), scraped.sourceName(), score);
+            return java.util.Optional.empty();
+        }
+        JobPost saved = repository.save(new JobPost(
                 scraped.title(),
                 scraped.organization(),
                 scraped.category(),
@@ -88,9 +101,10 @@ public class JobScraperService {
                 scraped.sourceName(),
                 score
         ));
+        return java.util.Optional.of(saved);
     }
 
     public JobSyncStatus syncStatus() {
-        return new JobSyncStatus(lastStartedAt, lastCompletedAt, lastFetchedCount, lastSavedCount, lastMessage);
+        return new JobSyncStatus(lastStartedAt, lastCompletedAt, lastFetchedCount, lastSavedCount, lastNewCount, lastMessage);
     }
 }

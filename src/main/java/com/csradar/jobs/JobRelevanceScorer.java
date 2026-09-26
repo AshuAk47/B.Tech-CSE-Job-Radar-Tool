@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class JobRelevanceScorer {
+    private final CseEligibilityMatcher eligibilityMatcher;
     private static final List<String> STRONG_SIGNALS = List.of(
             "computer science", "cse", "cs", "information technology", "it", "software",
             "java", "spring boot", "backend", "developer", "programmer", "data structures"
@@ -14,6 +15,10 @@ public class JobRelevanceScorer {
     private static final List<String> WEAK_SIGNALS = List.of(
             "b.tech", "btech", "be", "mca", "engineering", "graduate", "trainee", "intern"
     );
+
+    public JobRelevanceScorer(CseEligibilityMatcher eligibilityMatcher) {
+        this.eligibilityMatcher = eligibilityMatcher;
+    }
 
     public int score(String title, String eligibility, List<String> skills) {
         String haystack = (title + " " + eligibility + " " + String.join(" ", skills)).toLowerCase(Locale.ROOT);
@@ -28,10 +33,13 @@ public class JobRelevanceScorer {
                 score += 4;
             }
         }
+        if (eligibilityMatcher.matches(eligibility)) {
+            score += 18;
+        }
         return Math.min(score, 100);
     }
 
     public boolean isRelevant(String title, String eligibility, List<String> skills) {
-        return score(title, eligibility, skills) >= 55;
+        return eligibilityMatcher.matches(eligibility) || score(title, eligibility, skills) >= 65;
     }
 }
