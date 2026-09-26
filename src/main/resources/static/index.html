@@ -167,12 +167,10 @@
     <form class="form" id="alertForm" method="dialog">
       <h3>Alert Setup</h3>
       <input name="email" type="email" placeholder="Email address for alerts">
-      <input name="telegramChatId" placeholder="Telegram chat id (optional)">
       <input name="whatsappNumber" placeholder="WhatsApp number with country code, e.g. +919876543210">
       <input name="keywords" placeholder="Optional keywords: Java, Spring Boot, Navy">
       <div class="checks">
         <label><input type="checkbox" name="channels" value="EMAIL" checked>Email</label>
-        <label><input type="checkbox" name="channels" value="TELEGRAM">Telegram</label>
         <label><input type="checkbox" name="channels" value="WHATSAPP">WhatsApp</label>
       </div>
       <p class="muted">New matching listings trigger alerts after the next live scan. Email needs SMTP configuration; WhatsApp needs Twilio credentials.</p>
